@@ -157,4 +157,60 @@ export async function registerContactRoutes(app: FastifyInstance) {
     reply.code(200).send({ contact_id: contactId, created: ins.rows[0].is_new });
     return reply;
   });
+
+  // ===========================================================================
+  // PUSH from kashewapp.in: full customer profile ingest.
+  // Matches the integration contract shared with the kashewapp.in app.
+  // Auth via X-Api-Key (scope contacts:write). Upserts by phone number, so
+  // re-POSTing the same phone updates the record (e.g. when `paid` flips).
+  // Structured customer detail (pan/dob/paid/experian/external_id) is merged
+  // into contacts.enrichment.
+  // ===========================================================================
+  app.post('/api/ingest/customer', { preHandler: requireApiKey('contacts:write') }, async (req, reply) => {
+    const body = z.object({
+      phone: z.string().min(8),
+      name: z.string().optional(),
+      pan: z.string().optional(),
+      dob: z.string().optional(),
+      paid: z.boolean().optional(),
+      experian: z.record(z.unknown()).optional(),
+      external_id: z.string().optional(),
+    }).parse(req.body);
+
+    const phoneE164 = normalisePhone(body.phone);
+    const waId = phoneE164.replace(/^\+/, '');
+
+    const ins = await query<{ id: string; is_new: boolean }>(
+      `INSERT INTO contacts (wa_id, phone_e164, display_name, external_app_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (wa_id) DO UPDATE SET
+         display_name    = COALESCE(EXCLUDED.display_name, contacts.display_name),
+         external_app_id = COALESCE(EXCLUDED.external_app_id, contacts.external_app_id)
+       RETURNING id, (xmax = 0) AS is_new`,
+      [waId, phoneE164, body.name ?? null, body.external_id ?? null]
+    );
+    const contactId = ins.rows[0].id;
+
+    const enrichment: Record<string, unknown> = {};
+    if (body.pan !== undefined) enrichment.pan = body.pan;
+    if (body.dob !== undefined) enrichment.dob = body.dob;
+    if (body.paid !== undefined) enrichment.paid = body.paid;
+    if (body.experian !== undefined) enrichment.experian = body.experian;
+    if (body.external_id !== undefined) enrichment.external_id = body.external_id;
+
+    if (Object.keys(enrichment).length > 0) {
+      await query(
+        `UPDATE contacts SET enrichment = enrichment || $1::jsonb, enriched_at = NOW() WHERE id = $2`,
+        [JSON.stringify(enrichment), contactId]
+      );
+    }
+
+    emit(ins.rows[0].is_new ? 'contact.created' : 'contact.updated', {
+      contact_id: contactId, phone_e164: phoneE164, source: 'kashewapp',
+    });
+    emit('contact.enriched', { contact_id: contactId, source: 'kashewapp' });
+
+    reply.code(200).send({ ok: true, customer_id: contactId, created: ins.rows[0].is_new });
+    return reply;
+  });
 }
