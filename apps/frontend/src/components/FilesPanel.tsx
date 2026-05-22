@@ -120,13 +120,20 @@ export function FilesPanel({ contactId }: Props) {
   );
 }
 
+// Resolve a value by trying each path in turn. Path segments may be object keys
+// or numeric array indices (e.g. score_detail.0.value).
 function pick(obj: unknown, paths: string[][]): unknown {
   if (!obj || typeof obj !== 'object') return undefined;
   for (const path of paths) {
     let cur: unknown = obj;
     let ok = true;
     for (const key of path) {
-      if (cur && typeof cur === 'object' && key in (cur as Record<string, unknown>)) {
+      if (cur == null) { ok = false; break; }
+      if (Array.isArray(cur)) {
+        const idx = Number(key);
+        if (!Number.isNaN(idx) && idx < cur.length) cur = cur[idx];
+        else { ok = false; break; }
+      } else if (typeof cur === 'object' && key in (cur as Record<string, unknown>)) {
         cur = (cur as Record<string, unknown>)[key];
       } else { ok = false; break; }
     }
@@ -144,15 +151,21 @@ function asCount(v: unknown): number | undefined {
 }
 
 function experianSummary(experian: unknown) {
+  // Primary paths are the real Experian (India) bureau_report structure; the
+  // rest are defensive fallbacks for other shapes.
+  const pd = ['data', 'profile_data'];
   const score = pick(experian, [
+    [...pd, 'score_detail', '0', 'value'],
     ['score'], ['credit_score'], ['creditScore'], ['bureau_score'], ['risk_score'],
     ['SCORE'], ['Score', 'value'], ['score', 'value'],
   ]);
   const activeLoans = asCount(pick(experian, [
+    [...pd, 'account_summary', 'number_of_active_accounts'],
     ['active_loans'], ['activeLoans'], ['active_accounts'], ['open_accounts'],
-    ['accounts', 'active'], ['summary', 'active_accounts'], ['accounts'],
+    ['summary', 'active_accounts'],
   ]));
   const enquiries = asCount(pick(experian, [
+    [...pd, 'enquiry_summary', 'total'],
     ['enquiries'], ['enquiry_count'], ['inquiries'], ['total_enquiries'],
     ['summary', 'enquiries'],
   ]));
