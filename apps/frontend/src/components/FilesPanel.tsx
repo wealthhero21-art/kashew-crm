@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type FileRow } from '../lib/api';
 import { formatBytes, formatTime, mimeIcon, DOC_CATEGORIES } from '../lib/format';
@@ -63,6 +63,8 @@ export function FilesPanel({ contactId }: Props) {
         refreshing={enrich.isPending}
       />
 
+      <RemindersSection contactId={contactId} />
+
       <div className="fp-section">Documents · {files.length}</div>
 
       <div className="fp-list">
@@ -118,6 +120,46 @@ export function FilesPanel({ contactId }: Props) {
   );
 }
 
+function pick(obj: unknown, paths: string[][]): unknown {
+  if (!obj || typeof obj !== 'object') return undefined;
+  for (const path of paths) {
+    let cur: unknown = obj;
+    let ok = true;
+    for (const key of path) {
+      if (cur && typeof cur === 'object' && key in (cur as Record<string, unknown>)) {
+        cur = (cur as Record<string, unknown>)[key];
+      } else { ok = false; break; }
+    }
+    if (ok && cur !== undefined && cur !== null && cur !== '') return cur;
+  }
+  return undefined;
+}
+
+// Defensive count: a number is used as-is, an array uses its length.
+function asCount(v: unknown): number | undefined {
+  if (typeof v === 'number') return v;
+  if (Array.isArray(v)) return v.length;
+  if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return Number(v);
+  return undefined;
+}
+
+function experianSummary(experian: unknown) {
+  const score = pick(experian, [
+    ['score'], ['credit_score'], ['creditScore'], ['bureau_score'], ['risk_score'],
+    ['SCORE'], ['Score', 'value'], ['score', 'value'],
+  ]);
+  const activeLoans = asCount(pick(experian, [
+    ['active_loans'], ['activeLoans'], ['active_accounts'], ['open_accounts'],
+    ['accounts', 'active'], ['summary', 'active_accounts'], ['accounts'],
+  ]));
+  const enquiries = asCount(pick(experian, [
+    ['enquiries'], ['enquiry_count'], ['inquiries'], ['total_enquiries'],
+    ['summary', 'enquiries'],
+  ]));
+  const scoreNum = asCount(score);
+  return { score: scoreNum !== undefined ? scoreNum : (score as string | undefined), activeLoans, enquiries };
+}
+
 function CustomerDetails({
   enrichment, enrichedAt, onRefresh, refreshing,
 }: {
@@ -126,7 +168,16 @@ function CustomerDetails({
   onRefresh: () => void;
   refreshing: boolean;
 }) {
-  const entries = Object.entries(enrichment ?? {}).filter(([, v]) => v !== null && v !== '');
+  const e = enrichment ?? {};
+  const paid = e.paid === true ? true : e.paid === false ? false : undefined;
+  const pan = e.pan as string | undefined;
+  const dob = e.dob as string | undefined;
+  const externalId = e.external_id as string | undefined;
+  const experian = e.experian;
+  const hasExperian = experian && typeof experian === 'object';
+  const { score, activeLoans, enquiries } = experianSummary(experian);
+  const empty = paid === undefined && !pan && !dob && !hasExperian;
+
   return (
     <>
       <div className="fp-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -136,27 +187,121 @@ function CustomerDetails({
         </button>
       </div>
       <div className="fp-enrich">
-        {entries.length === 0 ? (
+        {empty ? (
           <div className="empty" style={{ padding: '10px 0', fontSize: 12 }}>
-            No external details yet. Configure a customer-lookup integration, or your app can push them.
+            No details from the app yet. They arrive automatically when the customer is pushed from kashewapp.in.
           </div>
         ) : (
-          <table className="enrich-table">
-            <tbody>
-              {entries.map(([k, v]) => (
-                <tr key={k}>
-                  <td className="ek">{k.replace(/_/g, ' ')}</td>
-                  <td className="ev">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {paid !== undefined && (
+              <span className={`pill ${paid ? 'pill-verified' : 'pill-pending'}`} style={{ marginBottom: 8, display: 'inline-block' }}>
+                {paid ? '● Paid user' : '○ Not paid'}
+              </span>
+            )}
+            <table className="enrich-table">
+              <tbody>
+                {pan && (<tr><td className="ek">PAN</td><td className="ev">{pan}</td></tr>)}
+                {dob && (<tr><td className="ek">DOB</td><td className="ev">{dob}</td></tr>)}
+                {externalId && (<tr><td className="ek">App ID</td><td className="ev">{externalId}</td></tr>)}
+              </tbody>
+            </table>
+
+            {hasExperian && (
+              <>
+                <div style={{ fontSize: 10, color: 'var(--text-faint)', margin: '10px 0 6px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Experian
+                </div>
+                <div className="exp-kpis">
+                  <div className="exp-kpi"><div className="exp-v">{score ?? '—'}</div><div className="exp-l">Score</div></div>
+                  <div className="exp-kpi"><div className="exp-v">{activeLoans ?? '—'}</div><div className="exp-l">Active loans</div></div>
+                  <div className="exp-kpi"><div className="exp-v">{enquiries ?? '—'}</div><div className="exp-l">Enquiries</div></div>
+                </div>
+                <details className="exp-raw">
+                  <summary>Raw report</summary>
+                  <pre>{JSON.stringify(experian, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </>
         )}
         {enrichedAt && (
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 6 }}>
             updated {formatTime(enrichedAt)}
           </div>
         )}
+      </div>
+    </>
+  );
+}
+
+function RemindersSection({ contactId }: { contactId: string }) {
+  const qc = useQueryClient();
+  const { data: reminders = [] } = useQuery({
+    queryKey: ['reminders', contactId],
+    queryFn: () => api.listContactReminders(contactId),
+  });
+  const [due, setDue] = useState('');
+  const [note, setNote] = useState('');
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['reminders', contactId] });
+    qc.invalidateQueries({ queryKey: ['reminders', 'due'] });
+  };
+  const add = useMutation({
+    mutationFn: () => api.addReminder(contactId, new Date(due).toISOString(), note || undefined),
+    onSuccess: () => { setDue(''); setNote(''); invalidate(); },
+  });
+  const toggle = useMutation({
+    mutationFn: ({ id, done }: { id: string; done: boolean }) => api.updateReminder(id, { done }),
+    onSuccess: invalidate,
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => api.deleteReminder(id),
+    onSuccess: invalidate,
+  });
+
+  const now = Date.now();
+  return (
+    <>
+      <div className="fp-section">Follow-ups</div>
+      <div className="fp-enrich">
+        <div className="rem-add">
+          <input
+            type="datetime-local"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+          />
+          <input
+            placeholder="Note (optional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button
+            className="btn primary"
+            disabled={!due || add.isPending}
+            onClick={() => add.mutate()}
+          >
+            {add.isPending ? '…' : 'Add'}
+          </button>
+        </div>
+        <ul className="rem-list">
+          {reminders.map((r) => {
+            const overdue = !r.done && new Date(r.due_at).getTime() < now;
+            return (
+              <li key={r.id} className={`rem-item${r.done ? ' done' : ''}${overdue ? ' overdue' : ''}`}>
+                <input type="checkbox" checked={r.done} onChange={(e) => toggle.mutate({ id: r.id, done: e.target.checked })} />
+                <div className="rem-body">
+                  <div className="rem-due">{new Date(r.due_at).toLocaleString()}{overdue ? ' · overdue' : ''}</div>
+                  {r.note && <div className="rem-note">{r.note}</div>}
+                </div>
+                <button className="link" onClick={() => del.mutate(r.id)} title="Delete">✕</button>
+              </li>
+            );
+          })}
+          {reminders.length === 0 && (
+            <li className="empty" style={{ fontSize: 12, padding: '8px 0', listStyle: 'none' }}>No follow-ups set</li>
+          )}
+        </ul>
       </div>
     </>
   );

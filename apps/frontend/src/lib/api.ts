@@ -97,6 +97,20 @@ export interface Template {
   variable_count: number;
 }
 
+export interface Reminder {
+  id: string;
+  contact_id: string;
+  due_at: string;
+  note: string | null;
+  done: boolean;
+  created_at: string;
+  updated_at?: string;
+  // present on the cross-customer due list
+  display_name?: string | null;
+  profile_name?: string | null;
+  phone_e164?: string;
+}
+
 export const api = {
   // ----- Auth -----
   requestOtp: (phone: string) =>
@@ -307,6 +321,22 @@ export const api = {
     }).then((r) => r.snippet),
   deleteSnippet: (id: string) =>
     http(`/api/snippets/${id}`, { method: 'DELETE' }),
+
+  // ----- Reminders / follow-ups -----
+  listReminders: (scope: 'open' | 'all' = 'open') =>
+    http<{ reminders: Reminder[] }>(`/api/reminders?scope=${scope}`).then((r) => r.reminders),
+  listContactReminders: (contactId: string) =>
+    http<{ reminders: Reminder[] }>(`/api/contacts/${contactId}/reminders`).then((r) => r.reminders),
+  addReminder: (contactId: string, due_at: string, note?: string) =>
+    http<{ reminder: Reminder }>(`/api/contacts/${contactId}/reminders`, {
+      method: 'POST', body: JSON.stringify({ due_at, note }),
+    }).then((r) => r.reminder),
+  updateReminder: (id: string, body: { due_at?: string; note?: string | null; done?: boolean }) =>
+    http<{ reminder: Reminder }>(`/api/reminders/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }).then((r) => r.reminder),
+  deleteReminder: (id: string) =>
+    http(`/api/reminders/${id}`, { method: 'DELETE' }),
 
   // ----- Internal notes (per contact) -----
   listNotes: (contactId: string) =>

@@ -959,3 +959,45 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   padding-right: 8px;
 }
 .enrich-table .ev { color: var(--text); word-break: break-word; }
+
+/* === Experian summary === */
+.exp-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.exp-kpi {
+  background: var(--bg-soft, rgba(127,127,127,0.06));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+}
+.exp-kpi .exp-v { font-size: 18px; font-weight: 600; color: var(--text); font-family: var(--font-mono); }
+.exp-kpi .exp-l { font-size: 10px; color: var(--text-faint); margin-top: 2px; }
+.exp-raw { margin-top: 8px; }
+.exp-raw summary { cursor: pointer; font-size: 11px; color: var(--text-dim); }
+.exp-raw pre {
+  margin: 6px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg-soft, rgba(127,127,127,0.06));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* === Follow-up reminders === */
+.rem-add { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-bottom: 10px; }
+.rem-add input[type="datetime-local"] { grid-column: 1 / -1; }
+.rem-add input, .rem-add button { padding: 6px 8px; font-size: 12px; }
+.rem-list { list-style: none; padding: 0; margin: 0; }
+.rem-item { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rem-item.done { opacity: 0.5; }
+.rem-item.done .rem-due { text-decoration: line-through; }
+.rem-item .rem-body { flex: 1; min-width: 0; }
+.rem-due { font-size: 12px; color: var(--text); }
+.rem-due a { color: var(--accent); text-decoration: none; }
+.rem-item.overdue .rem-due { color: var(--danger); }
+.rem-note { font-size: 12px; color: var(--text-dim); margin-top: 2px; word-break: break-word; }
+.rem-h-overdue { color: var(--danger); }

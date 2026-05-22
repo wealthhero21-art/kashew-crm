@@ -7,11 +7,10 @@ export function AgentLayout() {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand">Kashew CRM · {user?.role === 'admin' ? 'Admin' : 'Agent'}</div>
+        <div className="brand">Kashew CRM</div>
         <nav>
-          <NavLink to="leads" className={({ isActive }) => isActive ? 'active' : ''}>My leads</NavLink>
-          <NavLink to="inbox" className={({ isActive }) => isActive ? 'active' : ''}>Inbox</NavLink>
-          {user?.role === 'admin' && <NavLink to="/admin">← Admin panel</NavLink>}
+          <NavLink to="inbox" className={({ isActive }) => isActive ? 'active' : ''}>Customers</NavLink>
+          <NavLink to="reminders" className={({ isActive }) => isActive ? 'active' : ''}>Follow-ups</NavLink>
         </nav>
         <div className="me">
           <div>{user?.name}</div>

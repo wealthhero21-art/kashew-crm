@@ -12,6 +12,7 @@ import { AgentLayout } from './pages/agent/AgentLayout';
 import { AgentInbox } from './pages/agent/AgentInbox';
 import { AgentLeads } from './pages/agent/AgentLeads';
 import { LeadDetail } from './pages/agent/LeadDetail';
+import { Reminders } from './pages/agent/Reminders';
 import { useAuth } from './auth/AuthContext';
 import { useEvents } from './lib/useEvents';
 
@@ -19,7 +20,7 @@ function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <div className="loading">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === 'admin' ? '/admin' : '/agent'} replace />;
+  return <Navigate to="/agent" replace />;
 }
 
 function AuthedShell({ children }: { children: ReactNode }) {
@@ -50,10 +51,11 @@ export function App() {
           <AuthedShell><AgentLayout /></AuthedShell>
         </RequireAuth>
       }>
-        <Route index element={<Navigate to="leads" replace />} />
+        <Route index element={<Navigate to="inbox" replace />} />
+        <Route path="inbox" element={<AgentInbox />} />
+        <Route path="reminders" element={<Reminders />} />
         <Route path="leads" element={<AgentLeads />} />
         <Route path="leads/:id" element={<LeadDetail />} />
-        <Route path="inbox" element={<AgentInbox />} />
       </Route>
 
       <Route path="*" element={<RootRedirect />} />

@@ -20,8 +20,8 @@ export function ContactList({ selectedId, onSelect }: Props) {
     <aside className="contacts">
       <div className="brand">
         <div>
-          <div className="brand-mark">Inbox</div>
-          <div className="brand-sub">DSA · WhatsApp</div>
+          <div className="brand-mark">Customers</div>
+          <div className="brand-sub">WhatsApp</div>
         </div>
       </div>
       <div className="search-wrap">
