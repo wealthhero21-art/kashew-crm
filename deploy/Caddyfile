@@ -17,7 +17,7 @@
 
 	# SSE stream — disable buffering, allow long reads
 	handle /api/events {
-		reverse_proxy backend:4000 {
+		reverse_proxy kbackend:4000 {
 			flush_interval -1
 			transport http {
 				read_timeout 24h
@@ -27,16 +27,16 @@
 
 	# Backend API + auth + Meta webhook + health
 	handle /api/* {
-		reverse_proxy backend:4000
+		reverse_proxy kbackend:4000
 	}
 	handle /auth/* {
-		reverse_proxy backend:4000
+		reverse_proxy kbackend:4000
 	}
 	handle /webhook/* {
-		reverse_proxy backend:4000
+		reverse_proxy kbackend:4000
 	}
 	handle /health {
-		reverse_proxy backend:4000
+		reverse_proxy kbackend:4000
 	}
 
 	# Frontend SPA fallback for everything else.
