@@ -1,0 +1,88 @@
+# Coolify deploy target.
+#
+# Coolify is configured to build this file from the GitHub repo. It:
+#   - builds backend + frontend images using the repo's Dockerfiles
+#   - injects env vars from the Coolify UI (NOT from any .env file in the repo)
+#   - attaches a persistent volume for /var/crm/docs
+#   - proxies the public domain to the `frontend` service via Traefik
+#
+# Shared Postgres lives outside this compose (see shared-infra.md) and is
+# reachable on the `coolify` Docker network using its container name as host.
+#
+# Note on the cache service name: we deliberately don't call it `redis` because
+# Coolify's own `coolify-redis` (on the shared `coolify` network) is aliased
+# as `redis` — would shadow ours when the backend joins both networks.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      # DATABASE_URL, JWT_SECRET, WHATSAPP_* etc. all come from Coolify env.
+      REDIS_URL: redis://cache:6379
+      DISK_STORAGE_PATH: /var/crm/docs
+      HOST: 0.0.0.0
+      PORT: '4000'
+    volumes:
+      - docs:/var/crm/docs
+    depends_on:
+      - cache
+    # Attach to both the per-app network (default) and the shared `coolify`
+    # network so the shared Postgres is reachable by its container hostname.
+    networks:
+      - default
+      - coolify
+    # Migrate on every boot. schema_migrations dedupes already-applied files.
+    command: ["/bin/sh", "-c", "node dist/db/migrate.js && node dist/server.js"]
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - cache_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
+    # Coolify magic: referencing SERVICE_FQDN_<SERVICE>_<PORT> tells Coolify
+    # to auto-generate Traefik routing for the per-service domain set via
+    # the application's docker_compose_domains.
+    environment:
+      SERVICE_FQDN_FRONTEND_8080: /
+    expose:
+      - "8080"
+    depends_on:
+      - backend
+    # Must be on the coolify network so coolify-proxy (Traefik) can reach
+    # us. We also keep the default per-app network so we can talk to backend
+    # by its compose service name.
+    networks:
+      - default
+      - coolify
+    # Coolify's auto-generated routing labels (a) omit traefik.docker.network
+    # (Traefik then picks an attached network arbitrarily, sometimes one it
+    # isn't on → 502), and (b) don't pin a loadbalancer.server.port, so
+    # Traefik defaults to the lowest port the image EXPOSEs — caddy:2-alpine
+    # exposes 80/443/2019, none of which our Caddyfile listens on. Pin both.
+    labels:
+      - traefik.docker.network=coolify
+      - traefik.http.services.http-0-b245h6se6xsbefhgkgw1xj62-frontend.loadbalancer.server.port=8080
+
+volumes:
+  docs:
+  cache_data:
+
+networks:
+  default:
+  coolify:
+    external: true

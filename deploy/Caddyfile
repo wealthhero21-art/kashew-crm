@@ -1,0 +1,54 @@
+# Internal Caddy — runs behind Coolify-Traefik (which terminates TLS).
+# Listens on :8080 inside the docker network; Traefik routes the public
+# domain to this container.
+#
+# Uses `handle` blocks (mutually exclusive — first match wins, all others
+# skipped). An earlier version used `reverse_proxy @api ...` with a named
+# `path` matcher, but Caddy fell through to the SPA fallback for matched
+# paths in this image — handle/handle/handle is the robust pattern.
+
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	encode zstd gzip
+
+	# SSE stream — disable buffering, allow long reads
+	handle /api/events {
+		reverse_proxy backend:4000 {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+			}
+		}
+	}
+
+	# Backend API + auth + Meta webhook + health
+	handle /api/* {
+		reverse_proxy backend:4000
+	}
+	handle /auth/* {
+		reverse_proxy backend:4000
+	}
+	handle /webhook/* {
+		reverse_proxy backend:4000
+	}
+	handle /health {
+		reverse_proxy backend:4000
+	}
+
+	# Frontend SPA fallback for everything else.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+	}
+}
