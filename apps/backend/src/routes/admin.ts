@@ -56,7 +56,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }
   });
 
-  app.patch('/api/admin/users/:id', adminGuard, async (req) => {
+  app.patch('/api/admin/users/:id', adminGuard, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
       name: z.string().optional(),
@@ -64,6 +64,12 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       role: z.enum(['admin', 'agent']).optional(),
       active: z.boolean().optional(),
     }).parse(req.body);
+
+    // Safety: an admin must not lock themselves out of the CRM.
+    if (id === req.user!.id) {
+      if (body.active === false) { reply.code(400).send({ error: 'cannot_deactivate_self' }); return reply; }
+      if (body.role && body.role !== 'admin') { reply.code(400).send({ error: 'cannot_demote_self' }); return reply; }
+    }
 
     const sets: string[] = [];
     const args: unknown[] = [];
