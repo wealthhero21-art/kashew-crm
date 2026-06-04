@@ -113,6 +113,17 @@ export interface Reminder {
 
 export const api = {
   // ----- Auth -----
+  // Step 1: email + password → issues an OTP to the user's WhatsApp number.
+  login: (email: string, password: string) =>
+    http<{ sent: boolean; phone_masked: string }>(`/auth/login`, {
+      method: 'POST', body: JSON.stringify({ email, password }),
+    }),
+  // Step 2: verify the OTP (keyed by email) and receive a JWT session.
+  verifyOtpByEmail: (email: string, code: string) =>
+    http<{ token: string; expires_at: string; user: User }>(`/auth/otp/verify`, {
+      method: 'POST', body: JSON.stringify({ email, code }),
+    }),
+  // Legacy phone-keyed flow — kept for backward compatibility / scripts.
   requestOtp: (phone: string) =>
     http<{ sent: boolean }>(`/auth/otp/request`, {
       method: 'POST', body: JSON.stringify({ phone }),
