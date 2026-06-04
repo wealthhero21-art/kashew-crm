@@ -1,7 +1,7 @@
 import { randomInt, createHash } from 'node:crypto';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
-import { sendAuthTemplate } from '../whatsapp/api.js';
+import { sendSmsOtp } from '../sms/fast2sms.js';
 
 function hashCode(code: string): string {
   return createHash('sha256').update(code + config.JWT_SECRET).digest('hex');
@@ -47,13 +47,9 @@ export async function issueOtp(phoneE164: string): Promise<{ sent: boolean; cool
     [phoneE164, codeHash, expiresAt]
   );
 
-  // Send via WhatsApp AUTHENTICATION template. otp_template body is
-  // [code, purpose]; the copy-code button carries the code.
-  const waId = phoneE164.replace(/^\+/, '');
-  await sendAuthTemplate(waId, config.OTP_TEMPLATE_NAME, config.OTP_TEMPLATE_LANGUAGE, {
-    bodyParams: [code, config.OTP_TEMPLATE_PURPOSE],
-    buttonParam: code,
-  });
+  // Send via Fast2SMS DLT-manual route. The composed body must match the
+  // DLT-approved template exactly (with the OTP substituted).
+  await sendSmsOtp(phoneE164, code);
 
   return { sent: true };
 }

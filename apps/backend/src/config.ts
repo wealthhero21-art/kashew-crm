@@ -20,14 +20,25 @@ const schema = z.object({
   DOC_REREQUEST_TEMPLATE: z.string().default('doc_rerequest'),
   DOC_REREQUEST_LANGUAGE: z.string().default('en'),
 
-  // OTP login over WhatsApp
+  // OTP login over SMS (Fast2SMS DLT-manual route).
+  // The legacy WhatsApp OTP env vars are kept so older code paths still parse,
+  // but issueOtp now sends via SMS, not WhatsApp.
   OTP_TEMPLATE_NAME: z.string().default('login_otp'),
   OTP_TEMPLATE_LANGUAGE: z.string().default('en'),
-  // Second body variable of the otp_template ("...your OTP code for {{2}}").
   OTP_TEMPLATE_PURPOSE: z.string().default('Login'),
   OTP_TTL_SECONDS: z.coerce.number().default(300),
   OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
   OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().default(60),
+
+  // Fast2SMS DLT-manual delivery. The template body must EXACTLY match what
+  // was approved on DLT (with {otp} substituted) or Indian telcos scrub it.
+  FAST2SMS_API_KEY: z.string().min(1, 'FAST2SMS_API_KEY is required'),
+  FAST2SMS_SENDER_ID: z.string().default('KASEEW'),
+  FAST2SMS_ENTITY_ID: z.string().min(1, 'FAST2SMS_ENTITY_ID is required'),
+  FAST2SMS_TEMPLATE_ID: z.string().min(1, 'FAST2SMS_TEMPLATE_ID is required'),
+  FAST2SMS_TEMPLATE_BODY: z.string().default(
+    '{otp} is your Kashew app login OTP from Value Garage Private Limited. Do not share it with anyone. bEDdrV7LCC2'
+  ),
 
   // DEV-ONLY escape hatch: if set, this code logs in any registered + active
   // user without going through Meta. Used during initial setup before the
