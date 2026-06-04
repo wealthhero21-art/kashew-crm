@@ -7,7 +7,7 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /repo
 
 # Copy workspace manifests first for better layer caching
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/shared/package.json ./packages/shared/
 COPY tsconfig.base.json ./

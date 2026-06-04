@@ -4,7 +4,7 @@ FROM node:20-slim AS builder
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /repo
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared/package.json ./packages/shared/
 COPY tsconfig.base.json ./
