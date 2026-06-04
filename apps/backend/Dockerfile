@@ -12,7 +12,7 @@ COPY apps/backend/package.json ./apps/backend/
 COPY packages/shared/package.json ./packages/shared/
 COPY tsconfig.base.json ./
 
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 # Now the actual source
 COPY packages/shared ./packages/shared

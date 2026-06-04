@@ -9,7 +9,7 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared/package.json ./packages/shared/
 COPY tsconfig.base.json ./
 
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 COPY packages/shared ./packages/shared
 COPY apps/frontend ./apps/frontend
